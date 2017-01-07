@@ -5,7 +5,6 @@
 //    - Detent ring for solid contact engagement.
 // Bugs:
 //    - throws = 1 doesn't work
-//    - skip doesn't work right (at all?)
 //
 // Vision - A central hub with stackable throws. Each throw consists of two parts, the rotating hub contactor that can be fixed to the shaft and an outer shell consisting of the connections for the poles.
 // While this is essentially a stackable drum switch, it can be used for other types by only
@@ -17,38 +16,41 @@
 // I want to be able to indicate the number of connections (poles and throws) as well as the conductor dimensions. Everything else should auto-scale for these.
 //  - the spacing of blades at the periphery of the carrier must be > blade width to avoid shorts.
 //
-// Bearings:
-//   tailcap - blind hole for radial and one-way thrust
-//   headcap - through hole for radial
-//   top carrier - one way thrust to keep spindle locked into body.
 
-//$fn = 36;
 
 // Animation : expand then contract
 _ = $t;
 $t = abs(.5 - $t) * 2;
+$t = 0;
 
+animate_exploded = 1;
+animate_rotation = 1;
+animate_throws = 0;
+animate_blade = 0;
 
 // Constants
-pi = 3.1415;
 inches_to_mm = 25.4;
 units = inches_to_mm;  // only apply to base variables, not derived!!!
 recurse = true;
 
-throws = 3 + round(2 * $t);
+throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
+double_ended = true;
+
+//$fa = 6;
+//$fs = 1;
+//$fn = throws * 2;
 
 // Blades - amperage
-blade_thickness = 3/16 * units;
-blade_width = 1/2 * units;
-clamp_bolt_radius = blade_width / 4;
+blade_thickness = (3/16 + animate_blade * ((1/32 + ((1/4 - 1/32) * $t * animate_blade)))) * units;
+blade_width = (1/2 + animate_blade * (3/32 + ((3/4 - 3/32) * $t * animate_blade))) * units;
 
-// Animation - scale the amperage
-//blade_thickness = (1/32 + (1/4 - 1/32) * $t) * units;
-//blade_width = (3/32 + (3/4 - 3/32) * $t) * units;
+bolt_size_intervals = 1/16 * units / 2;  // bolt sizes increase by this interval (/ 2 -> radius)
+clamp_bolt_radius = round(blade_width / 5 / bolt_size_intervals + .5) * bolt_size_intervals;
 
-stud_radius = blade_width / 4;
-connector_width = stud_radius * 4;
+
+stud_radius = round(sqrt(blade_width * blade_thickness / PI) / bolt_size_intervals + .5) * bolt_size_intervals;  //same cross-sectional area as blade (for simplicity, a square bolt is used...accounts for threads, etc)
+connector_width = stud_radius * 4; // large enough to hold the head of the stud
 blade_clearance = 1/32 * units;
 
 wall_thickness = blade_width * .2;  // how sturdy is the switch
@@ -66,25 +68,23 @@ connector_degrees = 360 / (throws * 2);  // degrees between connectors
 
 // The connector circumference is what is needed to position the contactors with sufficient clearance.
 connector_circ = (2 * 2 * throws * (connector_width + 2 * blade_clearance));
-connector_radius = connector_circ / (2 * pi) + blade_width;
+connector_radius = connector_circ / (2 * PI) + blade_width;
 switch_radius = max(connector_radius, spindle_radius + blade_width + blade_clearance);
 
 
 pole_height = stud_radius * 2 * 2 * 1.5; // radius->diameter, head is 2x body, clearance
 
 
-// handle
-handle_radius = spindle_radius * 2;
-handle_height = handle_radius * 1;
-
 // Animation : explode the assembly
-min_exploded = 50;
-exploded = min_exploded + 2 * pole_height * $t;
+min_exploded = 0;
+exploded = min_exploded + poles * pole_height * $t * animate_exploded;
+echo(exploded=exploded);
 
 echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);
-echo(cs_area=blade_width * blade_thickness, "mm^2");
+echo(blade_cs=blade_width * blade_thickness, "mm^2", stud_cs=PI*stud_radius*stud_radius);
 echo(diameter=(switch_radius + wall_thickness) * 2 / units, degrees=connector_degrees * (throws - 1));
-echo(stud_diameter=(stud_radius * 2) / units);
+echo(stud_diameter=(stud_radius * 2) / units, bolt_diameter=(clamp_bolt_radius * 2) / units);
+echo(pole_height=pole_height);
 
 
 module bar(x, y, z) {
@@ -96,10 +96,8 @@ module body(height) {
     linear_extrude(height) circle(radius);
 
     // if the distance between every-other connector is small enough, skip every other bolt
-    circ = 2 * pi * (switch_radius + wall_thickness);
-    skip = (circ * (connector_degrees / 360) < 2 * units) ? 1 : 2;
-
-    for (i=connectors()) {
+    circ = 2 * PI * (switch_radius + wall_thickness);
+    for (i=connectors((circ * (connector_degrees / 360) < (1 * units)) ? 1 : 2)) {
         rotate([0, 0, i - connector_degrees / 2]) translate([radius + clamp_bolt_radius, 0, 0]) linear_extrude(height) union() 
         {
             difference() {
@@ -125,24 +123,73 @@ module endcap() {
   }
 }
 
-module headcap() {
-    // Endcap with a through-hole in hub.
+
+module _spindle_bearing(height) {
+  difference() {
+    spindle_block(height);
+    translate([0, 0, -.1])
     difference() {
-        endcap();
+      cylinder(hub_height + hub_clearance + spindle_clearance, spindle_radius + wall_thickness + .2, spindle_radius + wall_thickness + .1);
+      translate([0, 0, -.2]) cylinder(hub_height + hub_clearance + spindle_clearance + .4, spindle_radius - spindle_clearance, spindle_radius - spindle_clearance);
+    }
+  }
+}
+
+module spindle_bearing(through_hole) {
+  if (through_hole) {
+    _spindle_bearing(hub_height + hub_clearance + wall_thickness + spindle_clearance);
+  } else {
+    _spindle_bearing(hub_height - wall_thickness);
+  }
+}
+
+module handle_body(height) {
+      linear_extrude(height) {
+        hull() {
+          circle(spindle_radius);
+          translate([switch_radius * 1.5, 0, 0]) rotate([0, 0, 45]) square(blade_width, center=true);
+          translate([- (switch_radius - blade_width), 0, 0]) circle(blade_width);
+        }
+      }
+}
+
+module handle(height=pole_height) {
+  spindle_bearing(true);
+  translate([0, 0, hub_height + hub_clearance + wall_thickness]) {
+    difference() {
+      handle_body(height);
+      cylinder(r=spindle_radius, h=height + .1);
+    }
+    spindle_block(height);
+  }
+}
+
+module headcap() {
+    // Endcap with a through-hole in hub and a spindle bearing
+    difference() {
+        translate([0, 0, hub_height + hub_clearance]) mirror([0, 0, 1]) endcap();
         translate([0, 0, -.1]) linear_extrude(hub_height * 2 + .2) circle(spindle_radius + spindle_clearance);
+    }
+    if (recurse) {
+      translate([0, 0, exploded]) handle();
     }
 }
 
 module tailcap() {
     // Endcap with blind hole in hub to receive the end of the spindle.
+    // TODO - this should be a blind hole, but that requires bolt bore holes
     difference() {
         endcap();
-        translate([0, 0, wall_thickness]) linear_extrude(hub_height * 2 + .2) circle(spindle_radius + spindle_clearance);
+        translate([0, 0, -.1]) linear_extrude(hub_height * 2 + .2) circle(spindle_radius + spindle_clearance);
+    }
+    if (recurse) {
+      translate([0, 0, wall_thickness + exploded]) spindle_bearing(false);
     }
 }
 
 module blade() {
   blade_radius = switch_radius - blade_clearance;
+  rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   intersection() { //trim to switch body
     color("goldenrod") translate([-blade_radius, -blade_width/2, -blade_thickness/2]) bar(blade_radius * 2, blade_width, blade_thickness);
     translate([0, 0, -.1]) linear_extrude(blade_thickness + .2) circle(switch_radius - blade_clearance);
@@ -150,12 +197,13 @@ module blade() {
 }
 
 
-module spindle_block() {
+module spindle_block(height=pole_height / 2) {
+  rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   color("lightgrey") {
     difference () {
-      linear_extrude(pole_height / 2) {
+      linear_extrude(height) {
         difference() {
-          circle(spindle_radius + wall_thickness);
+          circle(spindle_radius + wall_thickness);  // wall_thickness is for bearing
          
           // bolt holes
           for (i=[90:180:360]) {
@@ -183,14 +231,13 @@ module carrier() {
 
 module rotor() {
   // carrier, and spindle block assembly
-  rotate([0, 0, connector_degrees / 2 + $t * connector_degrees * (throws - 1)]) {
-    carrier();
-    spindle_block();
-  }
+  carrier();
+  spindle_block();
 }
 
-function connectors() = [connector_degrees / 2: connector_degrees:360];  // evenly spaced around the periphery
-function stops() = [0, 180];
+function connectors(skip=1) = [connector_degrees / 2: skip * connector_degrees:360];  // evenly spaced around the periphery
+function stops() = [connector_degrees / 4, 180 - connector_degrees / 4,
+                   360 - connector_degrees / 4, 180 + connector_degrees / 4];
 
 module pole() {
   boss_radius = stud_radius * 3;
@@ -199,15 +246,16 @@ module pole() {
     difference() {
       union() {
         body(pole_height);
+        //connector bosses
         for (i=connectors()) {
            rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) circle(boss_radius);
         }
       }
-      // core and blade guides
+      // remove the core, but leave the blade guides
       difference() {
         translate([0, 0, -.1]) linear_extrude(pole_height + .2) circle(switch_radius);
         for(i=[1, -1]) {
-          translate([0, 0, pole_height / 2 + blade_thickness * i]) rotate_extrude() translate([switch_radius, 0, 0]) circle(wall_thickness);
+          translate([0, 0, pole_height / 2 + blade_thickness / 2 * i]) rotate_extrude() translate([switch_radius, 0, 0]) circle(wall_thickness);
         }
       }
       for (i=connectors()) {
@@ -218,9 +266,9 @@ module pole() {
       }
     }
     // blade stops
-    linear_extrude(pole_height)
+    linear_extrude(blade_thickness + wall_thickness);
     for (i=stops()) {
-      rotate([0, 0, i]) translate([switch_radius - blade_width/2, 0, 0]) square([blade_width, blade_thickness], center=true);
+      rotate([0, 0, i]) translate([switch_radius, 0, pole_height / 2]) square([wall_thickness*2, wall_thickness], center=true);
     }
   }
 
@@ -233,10 +281,15 @@ module pole() {
   }
 }
 
+module endcaps() {
+  tailcap();
+  translate([0, 0,poles * (pole_height + exploded) + (hub_clearance + hub_height)
+                  + exploded]) headcap();
+}
+
 module switch() {
     // endcaps
-    tailcap();
-    translate([0, 0, poles * (pole_height + exploded) + exploded + 2 * (hub_clearance + hub_height)]) rotate([180, 0, 0]) headcap();
+    endcaps();
     
     // sparky bits
     for (z=[hub_height + hub_clearance + exploded:pole_height + exploded:hub_height + hub_clearance + exploded + (poles - 1) * (pole_height + exploded)]) {
@@ -247,18 +300,21 @@ module switch() {
 module contactor() {
   length = connector_width + blade_clearance;
   offset = switch_radius - blade_width;
-  translate([offset, -length/2, blade_thickness / 2 / 2]) bar(blade_width, length, blade_thickness / 2);
-  translate([offset, -length/2, -blade_thickness / 2 / 2 - blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
+  translate([offset, -length/2, blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
+  translate([offset, -length/2, -blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
 }
 
-//switch();
+//blade();
+//contactor();
+//carrier();
+//body();
+//endcap();
 //tailcap();
+//spindle_block();
 //headcap();
 //handle();
-//blade();
-//carrier();
+endcaps();
 //rotor();
-//contactor();
-//body();
-pole();
+//pole();
+//switch();
 
