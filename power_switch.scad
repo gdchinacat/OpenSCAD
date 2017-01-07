@@ -18,15 +18,14 @@
 //
 
 
-// Animation : expand then contract
-_ = $t;
-$t = abs(.5 - $t) * 2;
-$t = 0;
-
+// Animation
 animate_exploded = 1;
 animate_rotation = 1;
 animate_throws = 0;
 animate_blade = 0;
+_t = $t;
+
+$t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 ? abs(.5 - $t) * 2 : 0;
 
 // Constants
 inches_to_mm = 25.4;
@@ -35,22 +34,25 @@ recurse = true;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
-double_ended = true;
 
-//$fa = 6;
-//$fs = 1;
-//$fn = throws * 2;
+$fa = 1;
+$fs = .5;
 
 // Blades - amperage
-blade_thickness = (3/16 + animate_blade * ((1/32 + ((1/4 - 1/32) * $t * animate_blade)))) * units;
-blade_width = (1/2 + animate_blade * (3/32 + ((3/4 - 3/32) * $t * animate_blade))) * units;
+blade_thickness = .050 * units;
+blade_width = .15 * units;
+//blade_thickness = (1/32 + animate_blade * ((1/32 + ((1/4 - 1/32) * $t * animate_blade)))) * units;
+//blade_width = (1/16 + animate_blade * (3/32 + ((3/4 - 3/32) * $t * animate_blade))) * units;
+
 
 bolt_size_intervals = 1/16 * units / 2;  // bolt sizes increase by this interval (/ 2 -> radius)
-clamp_bolt_radius = round(blade_width / 5 / bolt_size_intervals + .5) * bolt_size_intervals;
+function bolt_size(nominal) = max(1, round(nominal / bolt_size_intervals)) * bolt_size_intervals;
+
+clamp_bolt_radius = bolt_size(sqrt(blade_width));
 
 
-stud_radius = round(sqrt(blade_width * blade_thickness / PI) / bolt_size_intervals + .5) * bolt_size_intervals;  //same cross-sectional area as blade (for simplicity, a square bolt is used...accounts for threads, etc)
-connector_width = stud_radius * 4; // large enough to hold the head of the stud
+stud_radius = bolt_size(sqrt(blade_width * blade_thickness / PI));  //same cross-sectional area as blade (for simplicity, a square bolt is used...accounts for threads, etc)
+connector_width = stud_radius * 3;  // heads need to be machined to size
 blade_clearance = 1/32 * units;
 
 wall_thickness = blade_width * .2;  // how sturdy is the switch
@@ -97,7 +99,7 @@ module body(height) {
 
     // if the distance between every-other connector is small enough, skip every other bolt
     circ = 2 * PI * (switch_radius + wall_thickness);
-    for (i=connectors((circ * (connector_degrees / 360) < (1 * units)) ? 1 : 2)) {
+    for (i=connectors((circ * (connector_degrees / 360) > (1.5 * units)) ? 1 : 2)) {
         rotate([0, 0, i - connector_degrees / 2]) translate([radius + clamp_bolt_radius, 0, 0]) linear_extrude(height) union() 
         {
             difference() {
@@ -146,7 +148,7 @@ module spindle_bearing(through_hole) {
 module handle_body(height) {
       linear_extrude(height) {
         hull() {
-          circle(spindle_radius);
+          circle(spindle_radius + wall_thickness);
           translate([switch_radius * 1.5, 0, 0]) rotate([0, 0, 45]) square(blade_width, center=true);
           translate([- (switch_radius - blade_width), 0, 0]) circle(blade_width);
         }
@@ -313,8 +315,8 @@ module contactor() {
 //spindle_block();
 //headcap();
 //handle();
-endcaps();
+//endcaps();
 //rotor();
 //pole();
-//switch();
+switch();
 
