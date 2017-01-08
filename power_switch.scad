@@ -16,23 +16,24 @@
 // I want to be able to indicate the number of connections (poles and throws) as well as the conductor dimensions. Everything else should auto-scale for these.
 //  - the spacing of blades at the periphery of the carrier must be > blade width to avoid shorts.
 //
+// Design details:
+// heads are machined to a 'T' that is as wide as the blade and blade_width - 2 * blade_thickness in thickness...they can't rotate and are minimal sized.../
 
 
 // Animation
 animate_exploded = 0;
-animate_rotation = 0;
+animate_rotation = 1;
 animate_throws = 0;
-animate_blade = 0;
+animate_blade = 1;
 _t = $t;
-
 $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 ? abs(.5 - $t) * 2 : 0;
 
 // Constants
 inches_to_mm = 25.4;
 units = inches_to_mm;  // only apply to base variables, not derived!!!
 recurse = false;
-//$fa = .1;
-//$fs = .3;
+$fa = .3;
+$fs = .3;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
@@ -41,11 +42,8 @@ handle_spindle_clearance = 3/16 * units; // how much clearance to give the handl
 
 // Blades - amperage
 
-blade_thickness = .064 * units;
-blade_width = .25 * units;
-
-//blade_thickness = .050 * units;
-//blade_width = .15 * units;
+blade_thickness = .050 * units;
+blade_width = .15 * units;
 
 //blade_thickness = (1/32 + animate_blade * ((1/32 + ((1/4 - 1/32) * $t * animate_blade)))) * units;
 //blade_width = (1/16 + animate_blade * (3/32 + ((3/4 - 3/32) * $t * animate_blade))) * units;
@@ -56,14 +54,14 @@ function bolt_size(nominal) = max(1, round(nominal / bolt_size_intervals)) * bol
 
 clamp_bolt_radius = bolt_size(sqrt(blade_width));
 
-stud_radius = bolt_size(sqrt(blade_width * blade_thickness / PI));  //same cross-sectional area as blade (for simplicity, a square bolt is used...accounts for threads, etc)
-connector_width = max(stud_radius * 3, blade_width * 1.5 + 2 * blade_thickness);  // heads need to be machined to size
 blade_clearance = 1/32 * units;
+stud_radius = bolt_size(sqrt(blade_width * blade_thickness / PI));  //same cross-sectional area as blade (for simplicity modeled as a square bolt)
+connector_height = 5 * blade_thickness + 2 * blade_clearance; 
 
-//clamp_bolt_radius = 1/16 * units;
-//stud_radius = 1/16 * units;
+clamp_bolt_radius = 1/16 * units;
+stud_radius = 1/16 * units;
 
-wall_thickness = blade_thickness * 2;
+wall_thickness = blade_thickness;
 
 // Spindle
 spindle_radius = (blade_width/2) + 2 * clamp_bolt_radius + 2 * wall_thickness;
@@ -77,16 +75,16 @@ hub_clearance = 2;
 connector_degrees = 360 / (throws * 2);  // degrees between connectors
 
 // The connector circumference is what is needed to position the contactors with sufficient clearance.
-connector_circ = (2 * 2 * throws * (connector_width + 2 * blade_clearance));
+connector_circ = (2 * 2 * throws * (blade_width + blade_clearance));
 connector_radius = connector_circ / (2 * PI) + blade_width;
 switch_radius = max(connector_radius, spindle_radius + blade_width + blade_clearance);
 
 
-pole_height = connector_width + 2 * wall_thickness;
+pole_height = connector_height + 2 * wall_thickness;
 
 
 // Animation : explode the assembly
-min_exploded = 0;
+min_exploded = 30;
 exploded = min_exploded + poles * pole_height * $t * animate_exploded;
 echo(exploded=exploded);
 
@@ -130,7 +128,10 @@ module endcap() {
         body(hub_clearance + hub_height);
         translate([0, 0, wall_thickness]) linear_extrude(hub_height + hub_clearance - wall_thickness + .1) circle(switch_radius);
     }
-    linear_extrude(hub_height + hub_clearance) circle(hub_radius);
+    linear_extrude(hub_height) circle(hub_radius);
+    for(i=connectors()) {
+      rotate([0, 0, i + connector_degrees/2]) translate([0, -wall_thickness/2, 0]) cube([switch_radius, wall_thickness, hub_height]);
+    }
   }
 }
 
@@ -234,7 +235,7 @@ function stops() = [connector_degrees / 4, 180 - connector_degrees / 4,
                    360 - connector_degrees / 4, 180 + connector_degrees / 4];
 
 module pole() {
-  boss_radius = pole_height/2;//sqrt((connector_width/2)*(connector_width/2));
+  boss_radius = pole_height/2;
   boss_height = blade_thickness + stud_radius + wall_thickness;  // stud_radius is approximation of head height
   color("lightgrey") {
     difference() {
@@ -242,7 +243,7 @@ module pole() {
         body(pole_height);
         //connector bosses
         for (i=connectors()) {
-           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) square(pole_height, center=true);
+           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) circle(sqrt(pow(blade_width/2 + blade_clearance, 2) + pow(connector_height/2, 2)), center=true);
         }
       }
       // remove the core, but leave the blade guides
@@ -256,7 +257,7 @@ module pole() {
         // bolt hole
         rotate([0, 0, i]) translate([0, 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(switch_radius + boss_height + .1) circle(stud_radius);
         // connector recess
-        rotate([0, 0, i]) translate([0, 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(switch_radius + stud_radius + blade_thickness) square(connector_width, center=true);
+        rotate([0, 0, i]) translate([0, 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(switch_radius + stud_radius + blade_thickness) square([connector_height, blade_width + 2 * blade_clearance], center=true);
       }
     }
     // blade stops
@@ -292,7 +293,7 @@ module switch() {
 }
 
 module contactor() {
-  length = connector_width + blade_clearance;
+  length = blade_width + blade_clearance;
   offset = switch_radius - blade_width;
   translate([offset, -length/2, blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
   translate([offset, -length/2, -blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
