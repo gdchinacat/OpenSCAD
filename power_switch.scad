@@ -19,8 +19,8 @@
 
 
 // Animation
-animate_exploded = 1;
-animate_rotation = 1;
+animate_exploded = 0;
+animate_rotation = 0;
 animate_throws = 0;
 animate_blade = 0;
 _t = $t;
@@ -30,17 +30,22 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4;
 units = inches_to_mm;  // only apply to base variables, not derived!!!
-recurse = true;
+recurse = false;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
 
-$fa = 1;
-$fs = .5;
+$fa = .1;
+$fs = .3;
 
 // Blades - amperage
-blade_thickness = .050 * units;
-blade_width = .15 * units;
+
+blade_thickness = .064 * units;
+blade_width = .25 * units;
+
+//blade_thickness = .050 * units;
+//blade_width = .15 * units;
+
 //blade_thickness = (1/32 + animate_blade * ((1/32 + ((1/4 - 1/32) * $t * animate_blade)))) * units;
 //blade_width = (1/16 + animate_blade * (3/32 + ((3/4 - 3/32) * $t * animate_blade))) * units;
 
@@ -84,6 +89,7 @@ echo(exploded=exploded);
 
 echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);
 echo(blade_cs=blade_width * blade_thickness, "mm^2", stud_cs=PI*stud_radius*stud_radius);
+echo(wall_thickness=wall_thickness);
 echo(diameter=(switch_radius + wall_thickness) * 2 / units, degrees=connector_degrees * (throws - 1));
 echo(stud_diameter=(stud_radius * 2) / units, bolt_diameter=(clamp_bolt_radius * 2) / units);
 echo(pole_height=pole_height);
@@ -121,7 +127,7 @@ module endcap() {
         body(hub_clearance + hub_height);
         translate([0, 0, wall_thickness]) linear_extrude(hub_height + .1) circle(switch_radius);
     }
-    linear_extrude(hub_height) circle(hub_radius);
+    linear_extrude(hub_height + hub_clearance) circle(hub_radius);
   }
 }
 
@@ -131,7 +137,7 @@ module _spindle_bearing(height) {
     spindle_block(height);
     translate([0, 0, -.1])
     difference() {
-      cylinder(hub_height + hub_clearance + spindle_clearance, spindle_radius + wall_thickness + .2, spindle_radius + wall_thickness + .1);
+      cylinder(hub_height + hub_clearance + spindle_clearance/2, spindle_radius + spindle_clearance, spindle_radius + spindle_clearance/2);
       translate([0, 0, -.2]) cylinder(hub_height + hub_clearance + spindle_clearance + .4, spindle_radius - spindle_clearance, spindle_radius - spindle_clearance);
     }
   }
@@ -311,12 +317,12 @@ module contactor() {
 //carrier();
 //body();
 //endcap();
-//tailcap();
+tailcap();
 //spindle_block();
 //headcap();
 //handle();
 //endcaps();
 //rotor();
 //pole();
-switch();
+//switch();
 
