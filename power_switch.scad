@@ -30,13 +30,14 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4;
 units = inches_to_mm;  // only apply to base variables, not derived!!!
-recurse = false;
+recurse = true;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
+handle_spindle_clearance = 3/16 * units; // how much clearance to give the handle (for panel mounting)
 
-$fa = .1;
-$fs = .3;
+//$fa = .1;
+//$fs = .3;
 
 // Blades - amperage
 
@@ -66,8 +67,8 @@ wall_thickness = blade_width * .2;  // how sturdy is the switch
 spindle_radius = (blade_width/2) + 2 * clamp_bolt_radius + 2 * wall_thickness;
 spindle_clearance = .4;
 
-hub_radius = spindle_radius + wall_thickness;
-hub_height = hub_radius / 2;
+hub_radius = spindle_radius + 2 * wall_thickness;
+hub_height = spindle_radius / 2;
 hub_clearance = 2;
 
 // Body
@@ -125,31 +126,13 @@ module endcap() {
   color("lightgrey") {
     difference() {
         body(hub_clearance + hub_height);
-        translate([0, 0, wall_thickness]) linear_extrude(hub_height + .1) circle(switch_radius);
+        translate([0, 0, wall_thickness]) linear_extrude(hub_height + hub_clearance - wall_thickness + .1) circle(switch_radius);
     }
     linear_extrude(hub_height + hub_clearance) circle(hub_radius);
   }
 }
 
 
-module _spindle_bearing(height) {
-  difference() {
-    spindle_block(height);
-    translate([0, 0, -.1])
-    difference() {
-      cylinder(hub_height + hub_clearance + spindle_clearance/2, spindle_radius + spindle_clearance, spindle_radius + spindle_clearance/2);
-      translate([0, 0, -.2]) cylinder(hub_height + hub_clearance + spindle_clearance + .4, spindle_radius - spindle_clearance, spindle_radius - spindle_clearance);
-    }
-  }
-}
-
-module spindle_bearing(through_hole) {
-  if (through_hole) {
-    _spindle_bearing(hub_height + hub_clearance + wall_thickness + spindle_clearance);
-  } else {
-    _spindle_bearing(hub_height - wall_thickness);
-  }
-}
 
 module handle_body(height) {
       linear_extrude(height) {
@@ -161,14 +144,15 @@ module handle_body(height) {
       }
 }
 
+
 module handle(height=pole_height) {
-  spindle_bearing(true);
-  translate([0, 0, hub_height + hub_clearance + wall_thickness]) {
+  spindle_bearing(hub_height + hub_clearance + spindle_clearance + handle_spindle_clearance);
+  translate([0, 0, hub_height + hub_clearance + handle_spindle_clearance]) {
     difference() {
       handle_body(height);
       cylinder(r=spindle_radius, h=height + .1);
     }
-    spindle_block(height);
+    spindle_bearing(height);
   }
 }
 
@@ -191,7 +175,7 @@ module tailcap() {
         translate([0, 0, -.1]) linear_extrude(hub_height * 2 + .2) circle(spindle_radius + spindle_clearance);
     }
     if (recurse) {
-      translate([0, 0, wall_thickness + exploded]) spindle_bearing(false);
+      translate([0, 0, wall_thickness + exploded]) spindle_bearing(hub_height - spindle_clearance);
     }
 }
 
@@ -205,13 +189,13 @@ module blade() {
 }
 
 
-module spindle_block(height=pole_height / 2) {
+module spindle_bearing(height=pole_height / 2) {
   rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   color("lightgrey") {
     difference () {
       linear_extrude(height) {
         difference() {
-          circle(spindle_radius + wall_thickness);  // wall_thickness is for bearing
+          circle(spindle_radius);
          
           // bolt holes
           for (i=[90:180:360]) {
@@ -228,7 +212,7 @@ module carrier() {
   height = pole_height / 2;
   translate([0, 0, height]) {
     color("darkgrey") difference() {
-      spindle_block();
+      spindle_bearing();
       blade(); // This should be a press fit, no clearance
     }
     if (recurse) {
@@ -240,7 +224,7 @@ module carrier() {
 module rotor() {
   // carrier, and spindle block assembly
   carrier();
-  spindle_block();
+  spindle_bearing();
 }
 
 function connectors(skip=1) = [connector_degrees / 2: skip * connector_degrees:360];  // evenly spaced around the periphery
@@ -317,12 +301,12 @@ module contactor() {
 //carrier();
 //body();
 //endcap();
-tailcap();
-//spindle_block();
+//tailcap();
+//spindle_bearing();
 //headcap();
 //handle();
 //endcaps();
 //rotor();
 //pole();
-//switch();
+switch();
 
