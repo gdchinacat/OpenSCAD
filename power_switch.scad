@@ -22,9 +22,9 @@
 
 // Animation
 animate_exploded = 0;
-animate_rotation = 1;
+animate_rotation = 0;
 animate_throws = 0;
-animate_blade = 1;
+animate_blade = 0;
 _t = $t;
 $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 ? abs(.5 - $t) * 2 : 0;
 
@@ -231,8 +231,8 @@ module rotor() {
 }
 
 function connectors(skip=1) = [connector_degrees / 2: skip * connector_degrees:360];  // evenly spaced around the periphery
-function stops() = [connector_degrees / 4, 180 - connector_degrees / 4,
-                   360 - connector_degrees / 4, 180 + connector_degrees / 4];
+function stops() = [connector_degrees / 6, 180 - connector_degrees / 6,
+                   360 - connector_degrees / 6, 180 + connector_degrees / 6];
 
 module pole() {
   boss_radius = pole_height/2;
@@ -261,7 +261,6 @@ module pole() {
       }
     }
     // blade stops
-    linear_extrude(blade_thickness + wall_thickness);
     for (i=stops()) {
       rotate([0, 0, i]) translate([switch_radius, 0, pole_height / 2]) cube([wall_thickness*2, wall_thickness, wall_thickness * 3], center=true);
     }
