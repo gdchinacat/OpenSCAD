@@ -30,14 +30,14 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4;
 units = inches_to_mm;  // only apply to base variables, not derived!!!
-recurse = true;
+recurse = false;
+//$fa = .1;
+//$fs = .3;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
 handle_spindle_clearance = 3/16 * units; // how much clearance to give the handle (for panel mounting)
 
-//$fa = .1;
-//$fs = .3;
 
 // Blades - amperage
 
@@ -56,12 +56,14 @@ function bolt_size(nominal) = max(1, round(nominal / bolt_size_intervals)) * bol
 
 clamp_bolt_radius = bolt_size(sqrt(blade_width));
 
-
 stud_radius = bolt_size(sqrt(blade_width * blade_thickness / PI));  //same cross-sectional area as blade (for simplicity, a square bolt is used...accounts for threads, etc)
-connector_width = stud_radius * 3;  // heads need to be machined to size
+connector_width = max(stud_radius * 3, blade_width * 1.5 + 2 * blade_thickness);  // heads need to be machined to size
 blade_clearance = 1/32 * units;
 
-wall_thickness = blade_width * .2;  // how sturdy is the switch
+//clamp_bolt_radius = 1/16 * units;
+//stud_radius = 1/16 * units;
+
+wall_thickness = blade_thickness * 2;
 
 // Spindle
 spindle_radius = (blade_width/2) + 2 * clamp_bolt_radius + 2 * wall_thickness;
@@ -80,7 +82,7 @@ connector_radius = connector_circ / (2 * PI) + blade_width;
 switch_radius = max(connector_radius, spindle_radius + blade_width + blade_clearance);
 
 
-pole_height = stud_radius * 2 * 2 * 1.5; // radius->diameter, head is 2x body, clearance
+pole_height = connector_width + 2 * wall_thickness;
 
 
 // Animation : explode the assembly
@@ -88,12 +90,12 @@ min_exploded = 0;
 exploded = min_exploded + poles * pole_height * $t * animate_exploded;
 echo(exploded=exploded);
 
-echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);
+echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);//, blade_length=switch radius * 2 - blade_clearance);
 echo(blade_cs=blade_width * blade_thickness, "mm^2", stud_cs=PI*stud_radius*stud_radius);
-echo(wall_thickness=wall_thickness);
+echo(switch_radius=switch_radius / units, wall_thickness=wall_thickness / units);
 echo(diameter=(switch_radius + wall_thickness) * 2 / units, degrees=connector_degrees * (throws - 1));
 echo(stud_diameter=(stud_radius * 2) / units, bolt_diameter=(clamp_bolt_radius * 2) / units);
-echo(pole_height=pole_height);
+echo(pole_height=pole_height/units);
 
 
 module bar(x, y, z) {
@@ -232,7 +234,7 @@ function stops() = [connector_degrees / 4, 180 - connector_degrees / 4,
                    360 - connector_degrees / 4, 180 + connector_degrees / 4];
 
 module pole() {
-  boss_radius = stud_radius * 3;
+  boss_radius = pole_height/2;//sqrt((connector_width/2)*(connector_width/2));
   boss_height = blade_thickness + stud_radius + wall_thickness;  // stud_radius is approximation of head height
   color("lightgrey") {
     difference() {
@@ -240,14 +242,14 @@ module pole() {
         body(pole_height);
         //connector bosses
         for (i=connectors()) {
-           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) circle(boss_radius);
+           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) square(pole_height, center=true);
         }
       }
       // remove the core, but leave the blade guides
       difference() {
         translate([0, 0, -.1]) linear_extrude(pole_height + .2) circle(switch_radius);
         for(i=[1, -1]) {
-          translate([0, 0, pole_height / 2 + blade_thickness / 2 * i]) rotate_extrude() translate([switch_radius, 0, 0]) circle(wall_thickness);
+          translate([0, 0, pole_height / 2 + 2 * wall_thickness * i]) rotate_extrude() translate([switch_radius, 0, 0]) circle(wall_thickness);
         }
       }
       for (i=connectors()) {
@@ -260,7 +262,7 @@ module pole() {
     // blade stops
     linear_extrude(blade_thickness + wall_thickness);
     for (i=stops()) {
-      rotate([0, 0, i]) translate([switch_radius, 0, pole_height / 2]) square([wall_thickness*2, wall_thickness], center=true);
+      rotate([0, 0, i]) translate([switch_radius, 0, pole_height / 2]) cube([wall_thickness*2, wall_thickness, wall_thickness * 3], center=true);
     }
   }
 
@@ -307,6 +309,6 @@ module contactor() {
 //handle();
 //endcaps();
 //rotor();
-//pole();
-switch();
+pole();
+//switch();
 
