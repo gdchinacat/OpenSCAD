@@ -2,7 +2,11 @@
 // Scalable high-power switch.
 //
 // Todo:
+//    - spindle is lacking thrust bearing
+//    - print each carrier with an attached spindle bearing
+//    - spindle bearings have a hard time sticking...
 //    - Detent ring for solid contact engagement.
+//    
 // Bugs:
 //    - throws = 1 doesn't work
 //
@@ -29,10 +33,10 @@ _t = $t;
 $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 ? abs(.5 - $t) * 2 : 0;
 
 // Constants
-inches_to_mm = 25.4;
-units = inches_to_mm;  // only apply to base variables, not derived!!!
+inches_to_mm = 25.4; //works best when multiple of layer height
+units = inches_to_mm; // only apply to base variables, not derived!!!
 recurse = false;
-$fa = .3;
+$fa = .1;
 $fs = .3;
 
 throws = 3 + round(2 * $t * animate_throws);
@@ -58,8 +62,10 @@ blade_clearance = 1/32 * units;
 stud_radius = bolt_size(sqrt(blade_width * blade_thickness / PI));  //same cross-sectional area as blade (for simplicity modeled as a square bolt)
 connector_height = 5 * blade_thickness + 2 * blade_clearance; 
 
-clamp_bolt_radius = 1/16 * units;
-stud_radius = 1/16 * units;
+//***
+clamp_bolt_radius = .175 / 2 * units;
+stud_radius = .175 / 2 * units;
+//***
 
 wall_thickness = blade_thickness;
 
@@ -74,14 +80,14 @@ hub_clearance = 2;
 // Body
 connector_degrees = 360 / (throws * 2);  // degrees between connectors
 
-// The connector circumference is what is needed to position the contactors with sufficient clearance.
-connector_circ = (2 * 2 * throws * (blade_width + blade_clearance));
-connector_radius = connector_circ / (2 * PI) + blade_width;
-switch_radius = max(connector_radius, spindle_radius + blade_width + blade_clearance);
+// Position the connectors so there is sufficient clearance for the blades at the tips of the connectors.
+_circumference = (2 * 2 * throws * (blade_width + blade_clearance)); // 2 for connectors and bolts, 2 for both sides
+_radius = _circumference / (2 * PI);
+switch_radius = max(_radius + blade_width, spindle_radius + blade_width + blade_clearance);
 
+connector_radius = wall_thickness + sqrt(pow(blade_width/2 + blade_clearance, 2) + pow(connector_height/2, 2));
 
-pole_height = connector_height + 2 * wall_thickness;
-
+pole_height = connector_radius * 2 + wall_thickness;
 
 // Animation : explode the assembly
 min_exploded = 30;
@@ -243,7 +249,7 @@ module pole() {
         body(pole_height);
         //connector bosses
         for (i=connectors()) {
-           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) circle(sqrt(pow(blade_width/2 + blade_clearance, 2) + pow(connector_height/2, 2)), center=true);
+           rotate([0, 0, i]) translate([-(switch_radius + boss_height), 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(2 * (switch_radius + boss_height)) circle(connector_radius, center=true);
         }
       }
       // remove the core, but leave the blade guides
@@ -300,15 +306,17 @@ module contactor() {
 
 //blade();
 //contactor();
-//carrier();
+//translate([0, 0, pole_height * 1.5]) rotate([180, 0, 0]) carrier();
 //body();
 //endcap();
 //tailcap();
-//spindle_bearing();
-//headcap();
-//handle();
+spindle_bearing();
+//rotate([180, 0, 0]) headcap();
+//rotate([180, 0, 0]) handle();
 //endcaps();
 //rotor();
-pole();
+//pole();
 //switch();
+
+
 
