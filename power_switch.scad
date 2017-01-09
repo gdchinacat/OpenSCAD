@@ -25,7 +25,7 @@
 
 
 // Animation
-animate_exploded = 0;
+animate_exploded = 1;
 animate_rotation = 0;
 animate_throws = 0;
 animate_blade = 0;
@@ -35,9 +35,9 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4; //works best when multiple of layer height
 units = inches_to_mm; // only apply to base variables, not derived!!!
-recurse = false;
-$fa = .1;
-$fs = .3;
+recurse = true;
+//$fa = .1;
+//$fs = .3;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
@@ -90,7 +90,7 @@ connector_radius = wall_thickness + sqrt(pow(blade_width/2 + blade_clearance, 2)
 pole_height = connector_radius * 2 + wall_thickness;
 
 // Animation : explode the assembly
-min_exploded = 30;
+min_exploded = 0;
 exploded = min_exploded + poles * pole_height * $t * animate_exploded;
 echo(exploded=exploded);
 
@@ -192,25 +192,26 @@ module blade() {
   blade_radius = switch_radius - blade_clearance;
   rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   intersection() { //trim to switch body
-    color("goldenrod") translate([-blade_radius, -blade_width/2, -blade_thickness/2]) bar(blade_radius * 2, blade_width, blade_thickness);
+    color("goldenrod") translate([-blade_radius, -blade_width/2, 0]) bar(blade_radius * 2, blade_width, blade_thickness);
     translate([0, 0, -.1]) linear_extrude(blade_thickness + .2) circle(switch_radius - blade_clearance);
   }
 }
 
+module  _spindle_bearing(height) {
+}
 
-module spindle_bearing(height=pole_height / 2) {
+module spindle_bearing(height) {
   rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   color("lightgrey") {
-    difference () {
-      linear_extrude(height) {
-        difference() {
-          circle(spindle_radius);
+    difference() {
+      union() {
+        cylinder(r=spindle_radius, h=height);
+        translate([0, 0, height - wall_thickness]) cylinder(r=hub_radius, h=wall_thickness);
+      }
          
-          // bolt holes
-          for (i=[90:180:360]) {
-            rotate([0, 0, i]) translate([blade_width/2 + wall_thickness + clamp_bolt_radius, 0, 0]) circle(clamp_bolt_radius);
-          }
-        }
+      // bolt holes
+      for (i=[90:180:360]) {
+        rotate([0, 0, i]) translate([blade_width/2 + wall_thickness + clamp_bolt_radius, 0, -.1]) cylinder(r=clamp_bolt_radius, h=height+.2);
       }
     }
   }
@@ -219,21 +220,16 @@ module spindle_bearing(height=pole_height / 2) {
 module carrier() {
   // Holds the blades and provides bearing surfaces to locate the rotors in body (by extending beyond the spindle radius).
   height = pole_height / 2;
-  translate([0, 0, height]) {
-    color("darkgrey") difference() {
-      spindle_bearing();
-      blade(); // This should be a press fit, no clearance
+  color("darkgrey") difference() {
+    union() {
+      spindle_bearing(height, thrust=false);
     }
-    if (recurse) {
-      blade();
-    }
+    translate([0, 0, height - blade_thickness]) blade(); // This should be a press fit, no clearance
   }
-}
-
-module rotor() {
-  // carrier, and spindle block assembly
-  carrier();
-  spindle_bearing();
+  if (recurse) {
+    translate([0, 0, height - blade_thickness]) blade();
+    translate([0, 0, height]) spindle_bearing(height);
+  }
 }
 
 function connectors(skip=1) = [connector_degrees / 2: skip * connector_degrees:360];  // evenly spaced around the periphery
@@ -241,7 +237,6 @@ function stops() = [connector_degrees / 6, 180 - connector_degrees / 6,
                    360 - connector_degrees / 6, 180 + connector_degrees / 6];
 
 module pole() {
-  boss_radius = pole_height/2;
   boss_height = blade_thickness + stud_radius + wall_thickness;  // stud_radius is approximation of head height
   color("lightgrey") {
     difference() {
@@ -277,7 +272,7 @@ module pole() {
       rotate([0, 0, i]) translate([0, 0, pole_height / 2]) contactor();
       rotate([0, 0, 180 + i]) translate([0, 0, pole_height / 2]) contactor();
     }
-    rotor();
+    carrier();
   }
 }
 
@@ -306,17 +301,16 @@ module contactor() {
 
 //blade();
 //contactor();
-//translate([0, 0, pole_height * 1.5]) rotate([180, 0, 0]) carrier();
+//carrier();
 //body();
 //endcap();
 //tailcap();
-spindle_bearing();
+//spindle_bearing(pole_height/2);
+//spindle_bearing(hub_height);
 //rotate([180, 0, 0]) headcap();
 //rotate([180, 0, 0]) handle();
 //endcaps();
-//rotor();
 //pole();
-//switch();
-
+switch();
 
 
