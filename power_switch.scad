@@ -2,8 +2,6 @@
 // Scalable high-power switch.
 //
 // Todo:
-//    - spindle is lacking thrust bearing
-//    - print each carrier with an attached spindle bearing
 //    - spindle bearings have a hard time sticking...
 //    - Detent ring for solid contact engagement.
 //    
@@ -35,7 +33,7 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4; //works best when multiple of layer height
 units = inches_to_mm; // only apply to base variables, not derived!!!
-recurse = true;
+recurse = false;
 //$fa = .1;
 //$fs = .3;
 
@@ -299,18 +297,21 @@ module contactor() {
   translate([offset, -length/2, -blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
 }
 
+//switch();
+
+//body();
 //blade();
 //contactor();
-//carrier();
-//body();
 //endcap();
-//tailcap();
-//spindle_bearing(pole_height/2);
-//spindle_bearing(hub_height);
-//rotate([180, 0, 0]) headcap();
-//rotate([180, 0, 0]) handle();
 //endcaps();
-//pole();
-switch();
+
+// Top -> Bottom
+//rotate([180, 0, 0]) handle();
+//rotate([180, 0, 0]) headcap();
+//spindle_bearing(pole_height/2);  // for the top of the stack
+//carrier()                        // * poles
+//pole();                          // * poles
+//spindle_bearing(hub_height);     // for the bottom of the stack
+//tailcap();
 
 
