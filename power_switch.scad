@@ -23,7 +23,7 @@
 
 
 // Animation
-animate_exploded = 1;
+animate_exploded = 0;
 animate_rotation = 0;
 animate_throws = 0;
 animate_blade = 0;
@@ -33,7 +33,7 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 // Constants
 inches_to_mm = 25.4; //works best when multiple of layer height
 units = inches_to_mm; // only apply to base variables, not derived!!!
-recurse = false;
+recurse = true;
 //$fa = .1;
 //$fs = .3;
 
@@ -86,15 +86,16 @@ switch_radius = max(_radius + blade_width, spindle_radius + blade_width + blade_
 connector_radius = wall_thickness + sqrt(pow(blade_width/2 + blade_clearance, 2) + pow(connector_height/2, 2));
 
 pole_height = connector_radius * 2 + wall_thickness;
+carrier_height = pole_height / 2 + blade_thickness;
 
 // Animation : explode the assembly
 min_exploded = 0;
 exploded = min_exploded + poles * pole_height * $t * animate_exploded;
-echo(exploded=exploded);
 
 echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);//, blade_length=switch radius * 2 - blade_clearance);
 echo(blade_cs=blade_width * blade_thickness, "mm^2", stud_cs=PI*stud_radius*stud_radius);
 echo(switch_radius=switch_radius / units, wall_thickness=wall_thickness / units);
+echo(connector_height=connector_height / units);
 echo(diameter=(switch_radius + wall_thickness) * 2 / units, degrees=connector_degrees * (throws - 1));
 echo(stud_diameter=(stud_radius * 2) / units, bolt_diameter=(clamp_bolt_radius * 2) / units);
 echo(pole_height=pole_height/units);
@@ -129,10 +130,10 @@ module endcap() {
 
   color("lightgrey") {
     difference() {
-        body(hub_clearance + hub_height);
-        translate([0, 0, wall_thickness]) linear_extrude(hub_height + hub_clearance - wall_thickness + .1) circle(switch_radius);
+        body(hub_height + wall_thickness + hub_clearance);
+        translate([0, 0, wall_thickness]) cylinder(h=hub_height + hub_clearance + .1, r=switch_radius);
     }
-    linear_extrude(hub_height) circle(hub_radius);
+    cylinder(r=hub_radius, h=hub_height);
     for(i=connectors()) {
       rotate([0, 0, i + connector_degrees/2]) translate([0, -wall_thickness/2, 0]) cube([switch_radius, wall_thickness, hub_height]);
     }
@@ -153,13 +154,13 @@ module handle_body(height) {
 
 
 module handle(height=pole_height) {
-  spindle_bearing(hub_height + hub_clearance + spindle_clearance + handle_spindle_clearance);
+  spindle_bearing(hub_height + hub_clearance + spindle_clearance + handle_spindle_clearance, flange=false);
   translate([0, 0, hub_height + hub_clearance + handle_spindle_clearance]) {
     difference() {
       handle_body(height);
       cylinder(r=spindle_radius, h=height + .1);
     }
-    spindle_bearing(height);
+    spindle_bearing(height, flange=false);
   }
 }
 
@@ -179,10 +180,11 @@ module tailcap() {
     // TODO - this should be a blind hole, but that requires bolt bore holes
     difference() {
         endcap();
-        translate([0, 0, -.1]) linear_extrude(hub_height * 2 + .2) circle(spindle_radius + spindle_clearance);
+        translate([0, 0, -.1]) cylinder(h=hub_height * 2 + .2, r=spindle_radius + spindle_clearance);
     }
     if (recurse) {
-      translate([0, 0, wall_thickness + exploded]) spindle_bearing(hub_height - spindle_clearance);
+      translate([0, 0, wall_thickness + exploded])
+      spindle_bearing(hub_height + wall_thickness - spindle_clearance);
     }
 }
 
@@ -195,16 +197,16 @@ module blade() {
   }
 }
 
-module  _spindle_bearing(height) {
-}
-
-module spindle_bearing(height) {
+module spindle_bearing(height, flange=true) {
   rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   color("lightgrey") {
     difference() {
       union() {
         cylinder(r=spindle_radius, h=height);
-        translate([0, 0, height - wall_thickness]) cylinder(r=hub_radius, h=wall_thickness);
+        if (flange) {
+          // TODO - make this a radial bearing by r=switch_radius - spindle_clearance?
+          translate([0, 0, height - wall_thickness]) cylinder(r=hub_radius, h=wall_thickness);
+        }
       }
          
       // bolt holes
@@ -215,18 +217,16 @@ module spindle_bearing(height) {
   }
 }
 
-module carrier() {
+module carrier(height=carrier_height) {
   // Holds the blades and provides bearing surfaces to locate the rotors in body (by extending beyond the spindle radius).
-  height = pole_height / 2;
   color("darkgrey") difference() {
-    union() {
-      spindle_bearing(height, thrust=false);
-    }
-    translate([0, 0, height - blade_thickness]) blade(); // This should be a press fit, no clearance
+    spindle_bearing(height, flange=false);
+    translate([0, 0, height - blade_thickness + .1]) blade(); // This should be a press fit, no clearance
+    translate([0, 0, height - blade_thickness - .1]) blade(); // This should be a press fit, no clearance
   }
   if (recurse) {
     translate([0, 0, height - blade_thickness]) blade();
-    translate([0, 0, height]) spindle_bearing(height);
+    translate([0, 0, height - blade_thickness]) spindle_bearing(height - blade_thickness);
   }
 }
 
@@ -297,7 +297,7 @@ module contactor() {
   translate([offset, -length/2, -blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
 }
 
-//switch();
+switch();
 
 //body();
 //blade();
@@ -305,13 +305,17 @@ module contactor() {
 //endcap();
 //endcaps();
 
-// Top -> Bottom
+// head and handle
 //rotate([180, 0, 0]) handle();
 //rotate([180, 0, 0]) headcap();
-//spindle_bearing(pole_height/2);  // for the top of the stack
-//carrier()                        // * poles
-//pole();                          // * poles
-//spindle_bearing(hub_height);     // for the bottom of the stack
+
+// Poles, repeat for each one
+//rotate([180, 0, 0]) spindle_bearing(pole_height - carrier_height);  // for the top of the stack
+//carrier();
+//pole();
+
+//tailcap bits
+//rotate([180, 0, 0]) spindle_bearing(hub_height);     // for the bottom of the stack
 //tailcap();
 
 
