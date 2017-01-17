@@ -34,8 +34,8 @@ $t = (animate_exploded + animate_rotation + animate_throws + animate_blade) > 0 
 inches_to_mm = 25.4; //works best when multiple of layer height
 units = inches_to_mm; // only apply to base variables, not derived!!!
 recurse = true;
-//$fa = .1;
-//$fs = .3;
+$fa = .1;
+$fs = .3;
 
 throws = 3 + round(2 * $t * animate_throws);
 poles = 2;
@@ -86,7 +86,7 @@ switch_radius = max(_radius + blade_width, spindle_radius + blade_width + blade_
 connector_radius = wall_thickness + sqrt(pow(blade_width/2 + blade_clearance, 2) + pow(connector_height/2, 2));
 
 pole_height = connector_radius * 2 + wall_thickness;
-carrier_height = pole_height / 2 + blade_thickness;
+carrier_height = (pole_height + blade_thickness) / 2;
 
 // Animation : explode the assembly
 min_exploded = 0;
@@ -95,7 +95,8 @@ exploded = min_exploded + poles * pole_height * $t * animate_exploded;
 echo(blade_thickness=blade_thickness / units, blade_width=blade_width / units);//, blade_length=switch radius * 2 - blade_clearance);
 echo(blade_cs=blade_width * blade_thickness, "mm^2", stud_cs=PI*stud_radius*stud_radius);
 echo(switch_radius=switch_radius / units, wall_thickness=wall_thickness / units);
-echo(connector_height=connector_height / units);
+echo(connector_height=connector_height / units, connector_width=(blade_width + 2 * blade_clearance) / units);
+echo(carrier_height=carrier_height / units);
 echo(diameter=(switch_radius + wall_thickness) * 2 / units, degrees=connector_degrees * (throws - 1));
 echo(stud_diameter=(stud_radius * 2) / units, bolt_diameter=(clamp_bolt_radius * 2) / units);
 echo(pole_height=pole_height/units);
@@ -197,7 +198,7 @@ module blade() {
   }
 }
 
-module spindle_bearing(height, flange=true) {
+module spindle_bearing(height=pole_height - carrier_height, flange=true) {
   rotate([0, 0, connector_degrees / 2 + (animate_rotation * $t * connector_degrees * (throws - 1))])
   color("lightgrey") {
     difference() {
@@ -222,11 +223,10 @@ module carrier(height=carrier_height) {
   color("darkgrey") difference() {
     spindle_bearing(height, flange=false);
     translate([0, 0, height - blade_thickness + .1]) blade(); // This should be a press fit, no clearance
-    translate([0, 0, height - blade_thickness - .1]) blade(); // This should be a press fit, no clearance
   }
   if (recurse) {
     translate([0, 0, height - blade_thickness]) blade();
-    translate([0, 0, height - blade_thickness]) spindle_bearing(height - blade_thickness);
+    translate([0, 0, height]) spindle_bearing(pole_height - height);
   }
 }
 
@@ -255,7 +255,7 @@ module pole() {
       for (i=connectors()) {
         // bolt hole
         rotate([0, 0, i]) translate([0, 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(switch_radius + boss_height + .1) circle(stud_radius);
-        // connector recess
+        // bolt head recess
         rotate([0, 0, i]) translate([0, 0, pole_height / 2]) rotate([0, 90, 0]) linear_extrude(switch_radius + stud_radius + blade_thickness) square([connector_height, blade_width + 2 * blade_clearance], center=true);
       }
     }
@@ -267,8 +267,8 @@ module pole() {
 
   if (recurse) {
     for (i=connectors()) {
-      rotate([0, 0, i]) translate([0, 0, pole_height / 2]) contactor();
-      rotate([0, 0, 180 + i]) translate([0, 0, pole_height / 2]) contactor();
+      rotate([0, 0, i]) translate([0, 0, (pole_height - blade_thickness)/ 2]) contactor();
+      rotate([0, 0, 180 + i]) translate([0, 0, (pole_height - blade_thickness)/ 2]) contactor();
     }
     carrier();
   }
@@ -297,7 +297,7 @@ module contactor() {
   translate([offset, -length/2, -blade_thickness / 2]) bar(blade_width, length, blade_thickness / 2);
 }
 
-switch();
+//switch();
 
 //body();
 //blade();
@@ -310,12 +310,12 @@ switch();
 //rotate([180, 0, 0]) headcap();
 
 // Poles, repeat for each one
-//rotate([180, 0, 0]) spindle_bearing(pole_height - carrier_height);  // for the top of the stack
+//rotate([180, 0, 0]) spindle_bearing();  // for the top of the stack
 //carrier();
-//pole();
+pole();
 
 //tailcap bits
-//rotate([180, 0, 0]) spindle_bearing(hub_height);     // for the bottom of the stack
+//rotate([180, 0, 0]) spindle_bearing(hub_height + wall_thickness - spindle_clearance);     // for the bottom of the stack
 //tailcap();
 
 
